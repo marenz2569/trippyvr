@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="men.arkom.kl.vr.trippyvr">
+
+    <!-- The GVR SDK requires OpenGL ES 2+. -->
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+
+    <!-- Required for vibration feedback when the trigger action is performed. -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- Required to read the paired viewer's distortion parameters. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera"/>
+
+    <!-- Indicates use of Android's VR-mode, available only on Android N+. -->
+    <uses-feature android:name="android.software.vr.mode" android:required="false"/>
+    <!-- Indicates use of VR features that are available only on Daydream-ready devices. -->
+    <uses-feature android:name="android.hardware.vr.high_performance" android:required="false"/>
+
+
+    <application
+            android:allowBackup="true"
+            android:label="TrippyVR"
+            android:theme="@style/VrActivityTheme">
+        <activity
+                android:name=".TrippyVR"
+                android:label="@string/app_name"
+                android:screenOrientation="landscape"
+                android:configChanges="orientation|keyboardHidden|screenSize|uiMode|navigation|density"
+                android:enableVrMode="@string/gvr_vr_mode_component"
+                android:resizeableActivity="false">
+
+            <!-- Intent filter that enables this app to be launched from the
+                 Daydream Home menu. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.google.intent.category.DAYDREAM"/>
+            </intent-filter>
+
+            <!-- Intent filter that enables this app to be launched from the
+                 Cardboard app and from the traditional launcher. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.google.intent.category.CARDBOARD" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
