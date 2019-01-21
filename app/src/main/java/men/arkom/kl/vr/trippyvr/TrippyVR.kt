@@ -197,6 +197,7 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
         // the room. However, the color buffer is still cleared because it may
         // improve performance.
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+        GLES20.glClearColor(1f,0f,0f,1f)
 
         setGlViewportFromEye(leftEye)
 
