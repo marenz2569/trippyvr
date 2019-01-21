@@ -9,6 +9,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.ShortBuffer
+import de.javagl.obj.ObjData
+import de.javagl.obj.ObjReader
+import de.javagl.obj.ObjUtils
 
 internal class TexturedMesh
 @Throws(IOException::class)

@@ -1,6 +1,5 @@
 package men.arkom.kl.vr.trippyvr
 
-import android.content.Context
 import android.graphics.BitmapFactory
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
@@ -10,7 +9,7 @@ import java.net.URL
 
 internal class TextureFromBitmap
 @Throws(IOException::class)
-constructor(context: Context, texturePath: String) {
+constructor() {
     private val textureId = IntArray(1)
 
     init {
@@ -39,7 +38,7 @@ constructor(context: Context, texturePath: String) {
 
 internal class Texture
 @Throws(IOException::class)
-constructor(context: Context) {
+constructor() {
     private val textureId = IntArray(1)
 
     init {

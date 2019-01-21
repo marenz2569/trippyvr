@@ -11,10 +11,12 @@ import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
 import android.view.Surface
+import com.google.vr.sdk.base.*
 import java.io.IOException
 import java.lang.Exception
 import java.util.*
 import javax.microedition.khronos.egl.EGLConfig
+
 
 class TrippyVR : GvrActivity(), GvrView.Renderer {
 
@@ -26,18 +28,16 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
     private var room: TexturedMesh? = null
     private var roomTex: Texture? = null
 
-    private var camera: FloatArray? = null
-    private var view: FloatArray? = null
-    private var surfaceTextureProjection: FloatArray? = null
-    private var modelViewProjection: FloatArray? = null
-    private var modelView: FloatArray? = null
+    private var camera = FloatArray(16)
+    private var view = FloatArray(16)
+    private var surfaceTextureProjection = FloatArray(16)
+    private var modelViewProjection = FloatArray(16)
+    private var modelView = FloatArray(16)
 
-    private var modelRoom: FloatArray? = null
+    private var modelRoom = FloatArray(16)
 
     private var objectPositionParam: Int = 0
     private var objectUvParam: Int = 0
-
-    private var aspectRatio: Float = 0f
 
     /**
      * Sets the view to our GvrView and initializes the transformation matrices we will use
@@ -45,18 +45,6 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
      */
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        camera = FloatArray(16)
-        view = FloatArray(16)
-        surfaceTextureProjection = FloatArray(16)
-        modelViewProjection = FloatArray(16)
-        modelView = FloatArray(16)
-
-        modelRoom = FloatArray(16)
-
-        val display = windowManager.defaultDisplay
-        screenParams = ScreenParams(display)
-        aspectRatio = screenParams.width.toFloat() / 2f / screenParams.height.toFloat()
 
         initializeGvrView()
 
@@ -114,7 +102,7 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
 
         override fun onOpened(cameraDevice: CameraDevice)
         {
-            roomTex = Texture(this@MainActivity)
+            roomTex = Texture()
             surfaceTexture = SurfaceTexture(roomTex!!.getTextureId())
             // use largest camera size
             Arrays.sort(cameraSizes,  object : Comparator<Size> {
@@ -134,12 +122,18 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
 
         override fun onDisconnected(cameraDevice: CameraDevice)
         {
-            cameraDevice.close()
+            deinit(cameraDevice)
         }
 
         override fun onError(cameraDevice: CameraDevice, error: Int)
         {
+            deinit(cameraDevice)
+        }
+
+        fun deinit(cameraDevice: CameraDevice)
+        {
             cameraDevice.close()
+            surfaceTexture.release()
         }
     }
 
@@ -206,27 +200,13 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
 
         setGlViewportFromEye(leftEye)
 
-        // Apply the eye transformation to the camera.
-        //Matrix.multiplyMM(view, 0, rightEye.eyeView, 0, camera, 0)
-        view = camera
-        var headView = FloatArray(16)
-        headTransform.getHeadView(headView, 0)
-        //Matrix.multiplyMM(view, 0, headView, 0, camera, 0)
-
-        // Build the ModelView and ModelViewProjection matrices
-        // for calculating the position of the target object.
-        //val perspective = rightEye.getPerspective(Z_NEAR, Z_FAR)
         val perspective = FloatArray(16)
-        var fov = FieldOfView()
-        val topBottom = 60f
-        val leftRight = topBottom * aspectRatio
-        val tb = topBottom/2
-        val lr = leftRight/2
-        fov.setAngles(tb, tb, lr, lr)
-        fov.toPerspectiveMatrix(Z_NEAR, Z_FAR,perspective, 0)
+        val fov = FieldOfView()
+        fov.setAngles(30f,30f,30f,30f)
+        fov.toPerspectiveMatrix(Z_NEAR, Z_FAR, perspective, 0)
 
         // Set modelView for the room, so it's drawn in the correct location
-        Matrix.multiplyMM(modelView, 0, view, 0, modelRoom, 0)
+        Matrix.multiplyMM(modelView, 0, camera, 0, modelRoom, 0)
         Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0)
         drawRoom()
 
@@ -238,7 +218,7 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
         // Apply the eye transformation to the camera.
         //Matrix.multiplyMM(view, 0, rightEye.eyeView, 0, camera, 0)
         //view = camera
-        headView = FloatArray(16)
+        var headView = FloatArray(16)
         headTransform.getHeadView(headView, 0)
         Matrix.multiplyMM(view, 0, headView, 0, camera, 0)
 
