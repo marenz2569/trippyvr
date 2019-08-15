@@ -15,7 +15,6 @@ import de.javagl.obj.ObjUtils
 
 internal class TexturedMesh
 @Throws(IOException::class)
-//constructor(context: Context, private val positionAttrib: Int, private val uvAttrib: Int) {
 constructor(context: Context, private val objFilePath: String, val positionAttrib: Int, private val uvAttrib: Int) {
 
     private val vertices: FloatBuffer
@@ -23,22 +22,6 @@ constructor(context: Context, private val objFilePath: String, val positionAttri
     private val indices: ShortBuffer
 
     init {
-        /*
-        val intIndi = intArrayOf(0,1,2,3,4,5,6)
-        val intIndices = IntBuffer.allocate(intIndi.lastIndex + 1)
-        intIndices.put(intIndi)
-        val vert = floatArrayOf(-1f,-1f,-0f,
-            1f,-1f,-0f,
-            -1f,1f,-0f,
-            -1f,1f,-0f,
-            1f,-1f,-0f,
-            1f,1f,-0f)
-        vertices = FloatBuffer.allocate(vert.lastIndex + 1)
-        vertices.put(vert)
-        val uv_ = floatArrayOf(0f,0f)
-        uv = FloatBuffer.allocate(uv_.lastIndex + 1)
-        uv.put(uv_)
-        */
         val objInputStream = context.assets.open(objFilePath)
         val obj = ObjUtils.convertToRenderable(ObjReader.read(objInputStream))
         objInputStream.close()

@@ -1,6 +1,5 @@
 package men.arkom.kl.vr.trippyvr
 
-import android.content.Context
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
 import android.opengl.GLES20
@@ -13,31 +12,71 @@ import android.util.Size
 import android.view.Surface
 import com.google.vr.sdk.base.*
 import java.io.IOException
-import java.lang.Exception
-import java.util.*
 import javax.microedition.khronos.egl.EGLConfig
-
 
 class TrippyVR : GvrActivity(), GvrView.Renderer {
 
-    private var objectProgram: Int = 0
+    private companion object {
+        val TAG = "TrippyVR"
 
-    private var objectSurfaceTextureParam: Int = 0
-    private var objectModelViewProjectionParam: Int = 0
+        var objectProgram: Int = 0
 
-    private var room: TexturedMesh? = null
-    private var roomTex: Texture? = null
+        var objectSurfaceTextureParam: Int = 0
+        var objectModelViewProjectionParam: Int = 0
 
-    private var camera = FloatArray(16)
-    private var view = FloatArray(16)
-    private var surfaceTextureProjection = FloatArray(16)
-    private var modelViewProjection = FloatArray(16)
-    private var modelView = FloatArray(16)
+        lateinit var room: TexturedMesh
 
-    private var modelRoom = FloatArray(16)
+        var cameraObj = Camera()
 
-    private var objectPositionParam: Int = 0
-    private var objectUvParam: Int = 0
+        var camera                   = FloatArray(16)
+        var view                     = FloatArray(16)
+        var surfaceTextureProjection = FloatArray(16)
+        var modelViewProjection      = FloatArray(16)
+        var modelView                = FloatArray(16)
+
+        var modelRoom                = FloatArray(16)
+
+        var objectPositionParam: Int = 0
+        var objectUvParam: Int = 0
+
+        const val Z_NEAR = 0.01f
+        const val Z_FAR = 10.0f
+
+        val OBJECT_VERTEX_SHADER_CODE = arrayOf(
+            "uniform mat4 u_MVP;",
+            "uniform mat4 u_ST;",
+            "attribute vec4 a_Position;",
+            "attribute vec4 a_UV;",
+            "varying vec2 v_UV;",
+            "",
+            "void main() {",
+            "  gl_Position = u_MVP * a_Position;",
+            "  v_UV = (u_ST * a_UV).xy;",
+            "}"
+        )
+        val OBJECT_FRAGMENT_SHADER_CODE = arrayOf(
+            "#extension GL_OES_EGL_image_external : require",
+            "precision mediump float;",
+            "varying vec2 v_UV;",
+            //"uniform sampler2D u_Texture;",
+            "uniform samplerExternalOES u_Texture;",
+            "",
+            "void main() {",
+            "  gl_FragColor = texture2D(u_Texture, v_UV);",
+            "}"
+        )
+
+
+        lateinit var cameraHandler: Handler
+        lateinit var cameraThread : HandlerThread
+
+        lateinit var cameraSizes : Array<Size>
+        lateinit var cameraRequestBuilder: CaptureRequest.Builder
+
+        lateinit var surface : Surface
+        lateinit var cameraTex : Texture
+        lateinit var surfaceTexture : SurfaceTexture
+    }
 
     /**
      * Sets the view to our GvrView and initializes the transformation matrices we will use
@@ -46,15 +85,15 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        initializeGvrView()
+        cameraObj.start(this)
 
-        initializeCamera()
+        initializeGvrView()
     }
 
     private fun initializeGvrView() {
         setContentView(R.layout.activity_main)
 
-        val gvrView = findViewById(R.id.gvr_view) as GvrView
+        val gvrView = findViewById<GvrView>(R.id.gvr_view)
         gvrView.setEGLConfigChooser(8, 8, 8, 8, 16, 8)
 
         gvrView.setRenderer(this)
@@ -72,83 +111,6 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
         }
 
         setGvrView(gvrView)
-    }
-
-    private fun initializeCamera() {
-        val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        try {
-            for (cameraId in cameraManager.cameraIdList) {
-                val characteristics = cameraManager.getCameraCharacteristics(cameraId)
-                val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
-                if (facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
-                    cameraSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!.getOutputSizes(
-                        SurfaceTexture::class.java)
-                    cameraThread = HandlerThread("CameraPreview")
-                    cameraThread.start()
-                    cameraHandler = Handler(cameraThread.looper)
-                    cameraManager.openCamera(cameraId, cameraStateCallback, cameraHandler)
-                    break
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "No permissions to open camera", e.cause)
-        } catch (e: Exception) {
-            Log.e(TAG, "Unable to open camera and/or start thread", e.cause)
-            e.printStackTrace()
-        }
-    }
-
-    private val cameraStateCallback = object : CameraDevice.StateCallback() {
-
-        override fun onOpened(cameraDevice: CameraDevice)
-        {
-            roomTex = Texture()
-            surfaceTexture = SurfaceTexture(roomTex!!.getTextureId())
-            // use largest camera size
-            Arrays.sort(cameraSizes,  object : Comparator<Size> {
-                override fun compare(entry1: Size, entry2: Size) : Int {
-                    return (entry2.height * entry2.width).compareTo(entry1.height * entry1.width)
-                }
-            })
-            surfaceTexture.setDefaultBufferSize(cameraSizes[0].width, cameraSizes[0].height)
-            val surfaces = ArrayList<Surface>()
-            val surface = Surface(surfaceTexture)
-            surfaces.add(surface)
-            cameraRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-            cameraRequestBuilder.addTarget(surface)
-
-            cameraDevice.createCaptureSession(surfaces, cameraCaptureSessionStateCallback, Handler())
-        }
-
-        override fun onDisconnected(cameraDevice: CameraDevice)
-        {
-            deinit(cameraDevice)
-        }
-
-        override fun onError(cameraDevice: CameraDevice, error: Int)
-        {
-            deinit(cameraDevice)
-        }
-
-        fun deinit(cameraDevice: CameraDevice)
-        {
-            cameraDevice.close()
-            surfaceTexture.release()
-        }
-    }
-
-    private val cameraCaptureSessionStateCallback = object : CameraCaptureSession.StateCallback() {
-
-        override fun onConfigured(session: CameraCaptureSession) {
-            try {
-                /* We humbly set a repeating request for images.  i.e. a preview. */
-                session.setRepeatingRequest(cameraRequestBuilder.build(), null, Handler())
-            } catch (e: CameraAccessException) {
-                Log.e("Camera Exception", e.message)
-            }
-        }
-
-        override fun onConfigureFailed(session: CameraCaptureSession) {}
     }
 
     override fun onRendererShutdown() {
@@ -187,10 +149,11 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
 
     override fun onDrawFrame(headTransform: HeadTransform, leftEye: Eye, rightEye: Eye) {
 
-        surfaceTexture.updateTexImage()
-        surfaceTexture.getTransformMatrix(surfaceTextureProjection)
+        val perspective = FloatArray(16)
+        val fov = FieldOfView()
+        fov.setAngles(30f,30f,30f,30f)
+        fov.toPerspectiveMatrix(Z_NEAR, Z_FAR, perspective, 0)
 
-        Matrix.setLookAtM(camera, 0, 0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f)
 
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         // The clear color doesn't matter here because it's completely obscured by
@@ -199,26 +162,20 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glClearColor(1f,0f,0f,1f)
 
-        setGlViewportFromEye(leftEye)
+        Matrix.setLookAtM(camera, 0, 0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f)
 
-        val perspective = FloatArray(16)
-        val fov = FieldOfView()
-        fov.setAngles(30f,30f,30f,30f)
-        fov.toPerspectiveMatrix(Z_NEAR, Z_FAR, perspective, 0)
+        setGlViewportFromEye(leftEye)
 
         // Set modelView for the room, so it's drawn in the correct location
         Matrix.multiplyMM(modelView, 0, camera, 0, modelRoom, 0)
         Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0)
-        drawRoom()
+        cameraObj.drawGLES(objectProgram, objectSurfaceTextureParam, objectModelViewProjectionParam, surfaceTextureProjection, modelViewProjection)
+        room.draw()
 
-        // Build the camera matrix and apply it to the ModelView.
-        Matrix.setLookAtM(camera, 0, 0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f)
+        //Matrix.setLookAtM(camera, 0, 0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f)
 
         setGlViewportFromEye(rightEye)
 
-        // Apply the eye transformation to the camera.
-        //Matrix.multiplyMM(view, 0, rightEye.eyeView, 0, camera, 0)
-        //view = camera
         var headView = FloatArray(16)
         headTransform.getHeadView(headView, 0)
         Matrix.multiplyMM(view, 0, headView, 0, camera, 0)
@@ -226,7 +183,8 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
         // Set modelView for the room, so it's drawn in the correct location
         Matrix.multiplyMM(modelView, 0, view, 0, modelRoom, 0)
         Matrix.multiplyMM(modelViewProjection, 0, perspective, 0, modelView, 0)
-        drawRoom()
+        cameraObj.drawGLES(objectProgram, objectSurfaceTextureParam, objectModelViewProjectionParam, surfaceTextureProjection, modelViewProjection)
+        room.draw()
     }
 
     private fun setGlViewportFromEye(eye: Eye) {
@@ -234,55 +192,6 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
         GLES20.glViewport(viewport.x, viewport.y, viewport.width, viewport.height)
     }
 
-    /** Draw the room.  */
-    private fun drawRoom() {
-        GLES20.glUseProgram(objectProgram)
-        GLES20.glUniformMatrix4fv(objectSurfaceTextureParam, 1, false, surfaceTextureProjection, 0)
-        GLES20.glUniformMatrix4fv(objectModelViewProjectionParam, 1, false, modelViewProjection, 0)
-        roomTex!!.bind()
-        room!!.draw()
-        Util.checkGlError("drawRoom")
-    }
-
     override fun onFinishFrame(viewport: Viewport) {}
 
-    companion object {
-        private val TAG = "TrippyVR"
-
-        lateinit var screenParams: ScreenParams
-
-        lateinit var cameraSizes: Array<Size>
-        lateinit var cameraThread: HandlerThread
-        lateinit var cameraHandler: Handler
-        lateinit var cameraRequestBuilder: CaptureRequest.Builder
-
-        lateinit var surfaceTexture: SurfaceTexture
-
-        private val Z_NEAR = 0.01f
-        private val Z_FAR = 10.0f
-
-        private val OBJECT_VERTEX_SHADER_CODE = arrayOf(
-            "uniform mat4 u_MVP;",
-            "uniform mat4 u_ST;",
-            "attribute vec4 a_Position;",
-            "attribute vec4 a_UV;",
-            "varying vec2 v_UV;",
-            "",
-            "void main() {",
-            "  gl_Position = u_MVP * a_Position;",
-            "  v_UV = (u_ST * a_UV).xy;",
-            "}"
-        )
-        private val OBJECT_FRAGMENT_SHADER_CODE = arrayOf(
-            "#extension GL_OES_EGL_image_external : require",
-            "precision mediump float;",
-            "varying vec2 v_UV;",
-            //"uniform sampler2D u_Texture;",
-            "uniform samplerExternalOES u_Texture;",
-            "",
-            "void main() {",
-            "  gl_FragColor = texture2D(u_Texture, v_UV);",
-            "}"
-        )
-    }
 }
