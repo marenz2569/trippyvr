@@ -1,15 +1,9 @@
 package men.arkom.kl.vr.trippyvr
 
-import android.graphics.SurfaceTexture
-import android.hardware.camera2.*
 import android.opengl.GLES20
 import android.opengl.Matrix
 import android.os.Bundle
-import android.os.Handler
-import android.os.HandlerThread
 import android.util.Log
-import android.util.Size
-import android.view.Surface
 import com.google.vr.sdk.base.*
 import java.io.IOException
 import javax.microedition.khronos.egl.EGLConfig
@@ -26,7 +20,7 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
 
         lateinit var room: TexturedMesh
 
-        var cameraObj = Camera()
+        var cameraObj = CameraPreview()
 
         var camera                   = FloatArray(16)
         var view                     = FloatArray(16)
@@ -65,17 +59,6 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
             "  gl_FragColor = texture2D(u_Texture, v_UV);",
             "}"
         )
-
-
-        lateinit var cameraHandler: Handler
-        lateinit var cameraThread : HandlerThread
-
-        lateinit var cameraSizes : Array<Size>
-        lateinit var cameraRequestBuilder: CaptureRequest.Builder
-
-        lateinit var surface : Surface
-        lateinit var cameraTex : Texture
-        lateinit var surfaceTexture : SurfaceTexture
     }
 
     /**
@@ -115,6 +98,9 @@ class TrippyVR : GvrActivity(), GvrView.Renderer {
 
     override fun onRendererShutdown() {
         Log.i(TAG, "onRendererShutdown")
+        cameraObj.release()
+
+        TODO("release everything")
     }
 
     override fun onSurfaceChanged(width: Int, height: Int) {
