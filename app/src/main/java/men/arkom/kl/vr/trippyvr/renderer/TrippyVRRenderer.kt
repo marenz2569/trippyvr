@@ -16,7 +16,7 @@ class TrippyVRRenderer(val context: Context) : GvrView.Renderer {
     private companion object {
         const val TAG = "TrippyVRRenderer"
 
-        var cameraPreview = CameraPreview()
+        lateinit var cameraPreview: CameraPreview
 
         var objectProgram: Int = 0
 
@@ -66,7 +66,7 @@ class TrippyVRRenderer(val context: Context) : GvrView.Renderer {
 
     init {
         // create the camera preview session
-        cameraPreview.start(context)
+        cameraPreview = CameraPreview(context)
     }
 
     override fun onSurfaceCreated(config: EGLConfig) {
@@ -119,9 +119,7 @@ class TrippyVRRenderer(val context: Context) : GvrView.Renderer {
 
     override fun onRendererShutdown() {
         Log.i(TAG, "onRendererShutdown")
-        cameraPreview.release()
-
-        TODO("release everything")
+        cameraPreview.stop()
     }
 
     override fun onDrawFrame(headTransform: HeadTransform, leftEye: Eye, rightEye: Eye) {

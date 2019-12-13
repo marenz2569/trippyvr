@@ -13,7 +13,7 @@ import men.arkom.kl.vr.trippyvr.Util
 import men.arkom.kl.vr.trippyvr.texture.Texture
 import java.util.*
 
-internal class CameraPreview {
+internal class CameraPreview(val context: Context) {
 
     companion object {
         private val TAG = "CameraPreview"
@@ -23,18 +23,18 @@ internal class CameraPreview {
 
         val eyeSize = Size(2160, 2160)
 
-        private lateinit var cameraRequestBuilder: CaptureRequest.Builder
-        private lateinit var cameraManager: CameraManager
+        private lateinit var cameraDevice: CameraDevice
         private lateinit var cameraSizes: Array<Size>
 
-        private lateinit var surface: Surface
         private lateinit var cameraTex: Texture
         private lateinit var surfaceTexture: SurfaceTexture
-
-        private val encoder = Encoder()
     }
 
     private var CameraDeviceStateCallback = object : CameraDevice.StateCallback() {
+
+        private lateinit var cameraRequestBuilder: CaptureRequest.Builder
+        private lateinit var surface: Surface
+        private lateinit var encoder: Encoder
 
         private val cameraCaptureSessionStateCallback =
             object : CameraCaptureSession.StateCallback() {
@@ -42,7 +42,7 @@ internal class CameraPreview {
                 override fun onConfigured(session: CameraCaptureSession) {
                     try {
                         /* We humbly set a repeating request for images.  i.e. a preview. */
-                        session.setRepeatingRequest(cameraRequestBuilder.build(), null, Handler())
+                        session.setRepeatingRequest(cameraRequestBuilder.build(), null, cameraHandler)
                     } catch (e: CameraAccessException) {
                         Log.e("CameraAccessException", e.message)
                     }
@@ -50,15 +50,23 @@ internal class CameraPreview {
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {}
 
+                override fun onClosed(session: CameraCaptureSession) {
+                    session.stopRepeating()
+                }
+
             }
 
         override fun onOpened(camera: CameraDevice) {
+            // save the camera device for closing it again later
+            cameraDevice = camera
+
             if (!Arrays.stream(cameraSizes).anyMatch { size -> size.width >= eyeSize.width && size.height >= eyeSize.height })
                 throw Exception("Camera size is not supported: ${eyeSize}")
 
-            encoder.init()
-            encoder.start()
+            // start the encoder
+            encoder = Encoder()
 
+            // create a surface for the preview display
             surfaceTexture.setDefaultBufferSize(
                 eyeSize.width, eyeSize.height
             )
@@ -66,6 +74,7 @@ internal class CameraPreview {
                 surfaceTexture
             )
 
+            // setup the capure session with the surface for the encoder and the display
             cameraRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
             cameraRequestBuilder.addTarget(
                 Encoder.surface
@@ -73,34 +82,55 @@ internal class CameraPreview {
             cameraRequestBuilder.addTarget(
                 surface
             )
-
             camera.createCaptureSession(
                 ArrayList<Surface>(
                     mutableListOf(
                         Encoder.surface,
                         surface
                     )
-                ), cameraCaptureSessionStateCallback, Handler()
+                ), cameraCaptureSessionStateCallback, cameraHandler
             )
-
         }
 
         override fun onDisconnected(camera: CameraDevice) {
-            camera.close()
+            shutdown(camera)
         }
 
         override fun onError(camera: CameraDevice, error: Int) {
+            shutdown(camera)
+        }
+
+        override fun onClosed(camera: CameraDevice) {
+            shutdown(camera)
+        }
+
+        /**
+         * stops the encoder, frees the surface(Texture) of the preview and closes the cameraDevice
+         */
+        private fun shutdown(camera: CameraDevice) {
+            encoder.stop()
+            surface.release()
+            surfaceTexture.release()
             camera.close()
         }
 
     }
 
-    fun start(context: Context) {
+    /**
+     * setup the texture for GLES, start a new HandelThread for the camera with back facing lens
+     * and valid output sizess
+     */
+    init {
         cameraTex = Texture()
         surfaceTexture = SurfaceTexture(
             cameraTex.getTextureId()
         )
-        cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        cameraHandlerThread = HandlerThread("CameraPreview")
+        cameraHandlerThread.start()
+        cameraHandler = Handler(
+            cameraHandlerThread.looper
+        )
 
         try {
             for (cameraId in cameraManager.cameraIdList) {
@@ -111,11 +141,6 @@ internal class CameraPreview {
                         characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!.getOutputSizes(
                             SurfaceTexture::class.java
                         )
-                    cameraHandlerThread = HandlerThread("CameraPreview")
-                    cameraHandlerThread.start()
-                    cameraHandler = Handler(
-                        cameraHandlerThread.looper
-                    )
                     cameraManager.openCamera(
                         cameraId, CameraDeviceStateCallback,
                         cameraHandler
@@ -131,11 +156,18 @@ internal class CameraPreview {
         }
     }
 
-    fun release() {
-        encoder.release()
-        surface.release()
+    /**
+     * stop the camera device and its associated thread
+     */
+    fun stop() {
+        Log.d(TAG, "stop")
+        cameraDevice.close()
+        cameraHandlerThread.quit()
     }
 
+    /**
+     * daw the surfaceTexture of the CameraPreview to the world
+     */
     fun drawGLES(
         objectProgram: Int,
         objectSurfaceTextureParam: Int, objectModelViewProjectionParam: Int,
@@ -147,7 +179,7 @@ internal class CameraPreview {
         GLES20.glUniformMatrix4fv(objectSurfaceTextureParam, 1, false, surfaceTextureProjection, 0)
         GLES20.glUniformMatrix4fv(objectModelViewProjectionParam, 1, false, modelViewProjection, 0)
         cameraTex.bind()
-        Util.checkGlError("drawCamera")
+        Util.checkGlError("drawGLES")
     }
 
 }

@@ -4,6 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
 
@@ -15,6 +16,7 @@ internal class Encoder {
 
         private lateinit var encoder: MediaCodec
         lateinit var surface: Surface
+        private lateinit var handlerThread: HandlerThread
     }
 
     private var encoderStateCallback = object : MediaCodec.Callback() {
@@ -38,7 +40,7 @@ internal class Encoder {
 
     }
 
-    fun init() {
+    init {
         encoder = MediaCodec.createEncoderByType(
             MIME_TYPE
         )
@@ -66,15 +68,18 @@ internal class Encoder {
         Log.d(TAG, "format: $mediaFormat")
         encoder.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         surface = encoder.createInputSurface()
-        encoder.setCallback(encoderStateCallback, Handler())
-    }
 
-    fun start() {
+        handlerThread = HandlerThread("StateCallback")
+        handlerThread.start()
+        encoder.setCallback(encoderStateCallback, Handler(handlerThread.looper))
         encoder.start()
     }
 
-    fun release() {
+    fun stop() {
+        Log.d(TAG, "Stopping")
+        handlerThread.quitSafely()
         encoder.release()
+        surface.release()
     }
 
 }
