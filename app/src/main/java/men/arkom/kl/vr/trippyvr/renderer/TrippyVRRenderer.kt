@@ -144,7 +144,15 @@ class TrippyVRRenderer(val context: Context) : GvrView.Renderer {
         // draw the left eye
         setGlViewportFromEye(leftEye)
         Matrix.setLookAtM(camera, 0, 0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f)
+        // Set modelView for the room, so it's drawn in the correct location
+        Matrix.multiplyMM(
+            modelView, 0,
+            camera, 0,
+            modelRoom, 0
+        )
+        // draw the viewport
         drawToEye(perspective)
+        room.draw()
 
         // draw the right eye
         setGlViewportFromEye(rightEye)
@@ -155,9 +163,14 @@ class TrippyVRRenderer(val context: Context) : GvrView.Renderer {
             view, 0, headView, 0,
             camera, 0
         )
+        // Set modelView for the room, so it's drawn in the correct location
+        Matrix.multiplyMM(
+            modelView, 0,
+            view, 0,
+            modelRoom, 0
+        )
+        // draw the viewport
         drawToEye(perspective)
-
-        // draw the whole room
         room.draw()
     }
 
@@ -167,12 +180,6 @@ class TrippyVRRenderer(val context: Context) : GvrView.Renderer {
     }
 
     private fun drawToEye(perspective: FloatArray) {
-        // Set modelView for the room, so it's drawn in the correct location
-        Matrix.multiplyMM(
-            modelView, 0,
-            camera, 0,
-            modelRoom, 0
-        )
         Matrix.multiplyMM(
             modelViewProjection, 0, perspective, 0,
             modelView, 0
